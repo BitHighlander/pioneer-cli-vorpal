@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import inquirer from 'inquirer';
 import * as dotenv from "dotenv";
 dotenv.config();
 //cli tools
-import {handle_input,perform_skill} from "./pioneer";
-const fsAutocomplete = require('vorpal-autocomplete-fs');
+import {fix_skill, handle_input, perform_skill} from "./pioneer";
+
+// import inquirer from 'inquirer';
+// const fsAutocomplete = require('vorpal-autocomplete-fs');
+
 
 import util from "util";
 import {showWelcome} from './ascii';
@@ -13,14 +15,18 @@ const vorpal = require('vorpal')();
 const log = require('@pioneer-platform/loggerdog')()
 const fs = require('fs-extra');
 const path = require('path');
+// const inquirer = require("inquirer");
 // const chalk = require("chalk");
 // const figlet = require("figlet");
 //globals
+let currentDirectory = process.cwd();
+let fileList: string[] = [];
 let skills:any = []
 let refreshSkills = async function(){
     try{
         //skills
         skills = await fs.readdir("./skills")
+        fileList = fs.readdirSync(currentDirectory);
         //log.info("skills: ",skills)
         return
     }catch(e){
@@ -71,6 +77,74 @@ let onStart = async function(){
             })
             .autocomplete(skills);
 
+        vorpal
+            .command('fix <filename>', 'fix a skill.')
+            .action(async function(args: any, callback: () => void) {
+                //@ts-ignore
+                this.prompt([
+                    {
+                        type: 'input',
+                        name: 'issue',
+                        message: 'describe the issue: '
+                    },
+                    {
+                        type: 'extra context',
+                        name: 'context',
+                        message: 'provide context or extra info: '
+                    }
+                ], async (results: { issue: any; context: any; }) => {
+                    console.log('Your context is: ', results.context);
+                    console.log('Your issue is: ', results.issue);
+                    let resultFix = await fix_skill("./skills/"+args.filename,results.issue,results.context)
+                    // console.log('resultFix: ', resultFix);
+                    // callback();
+                });
+            })
+            .autocomplete(skills);
+
+        vorpal
+            .command('ls', 'list a directory.')
+            .action(function(args: any, callback: () => void) {
+                let tag = " | run | "
+                try{
+                    fs.readdir(currentDirectory, (err: any, files: any[]) => {
+                        if (err) {
+                            console.log(tag, 'Error reading directory:', err);
+                        } else {
+                            console.log(files.join('\n'));
+                            fileList = files; // Update fileList after listing the directory
+                        }
+                        callback();
+                    });
+                }catch(e){
+                    console.log(e);
+                }
+            });
+
+        vorpal
+            .command('cd <path>', 'change directory.')
+            .autocomplete({
+                data: () => {
+                    return fileList;
+                }
+            })
+            .action(function(args: { path: any; }, callback: () => void) {
+                let tag = " | run | "
+                try{
+                    let newDirectory = path.resolve(currentDirectory, args.path);
+                    if (fs.existsSync(newDirectory)) {
+                        currentDirectory = newDirectory;
+                        console.log(`Changed directory to ${newDirectory}`);
+                        refreshSkills(); // Update fileList after changing the directory
+                    } else {
+                        console.log(`${tag} Invalid directory: ${newDirectory}`);
+                    }
+                    callback();
+                }catch(e){
+                    console.log(e);
+                }
+            });
+
         //catchall
         vorpal
             .catch('[input...]', 'Responds to all inputs.')
@@ -107,7 +181,6 @@ let onStart = async function(){
         log.info(
             " \n A simple Multi-Coin Wallet and explorer CLI      \n \n                        ---Highlander \n "
         );
-
 
         vorpal
             .delimiter('pioneer:')

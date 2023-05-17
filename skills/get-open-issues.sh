@@ -9,7 +9,7 @@ if [ -d .git ] || git rev-parse --git-dir > /dev/null 2>&1; then
         echo "No remote URL found for this repository."
     else
         # Extract the username and repository name from the remote URL
-        re="github.com[:/](.+)/(.+)(\.git)*$"
+        re="github.com[/:](.+)/(.+)\.git"
         if [[ $remote_url =~ $re ]]; then
             user=${BASH_REMATCH[1]}
             repo=${BASH_REMATCH[2]}
@@ -20,21 +20,6 @@ if [ -d .git ] || git rev-parse --git-dir > /dev/null 2>&1; then
 
             echo "Open issues:"
             echo "$issues"
-
-            # Extract comments URL from the first issue
-            comments_url=$(echo "$issues" | jq -r '.[0].comments_url')
-            echo "Comments URL: $comments_url"
-
-            # Query the comments URL and store the response
-            comments_response=$(curl -s "$comments_url")
-            echo "Comments Response:"
-            echo "$comments_response"
-
-            # Combine issues and comments_response into a JSON object
-            json_output=$(jq -n --argjson issues "$issues" --argjson comments_response "$comments_response" '{issues: $issues, comments_response: $comments_response}')
-
-            echo "JSON Output:"
-            echo "$json_output"
         else
             echo "This repository is not hosted on GitHub."
         fi
