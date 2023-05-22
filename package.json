@@ -10,7 +10,9 @@
     "postbuild": "copyfiles -u 1 src/**/*.js dist"
   },
   "dependencies": {
+    "@pioneer-platform/langchain": "1.0.4",
     "@pioneer-platform/loggerdog": "^8.1.18",
+    "@pioneer-platform/pioneer-intelligence": "^8.1.14",
     "@types/inquirer": "^9.0.3",
     "@types/node": "^20.1.4",
     "chalk": "^5.2.0",

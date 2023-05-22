@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as dotenv from "dotenv";
-dotenv.config();
+dotenv.config()
+dotenv.config({path:'../../.env'})
 //cli tools
 import {fix_skill, handle_input, perform_skill} from "./pioneer";
 
@@ -44,8 +45,6 @@ let onStart = async function(){
         //is github token set?
         //is openAi token set?
 
-        //
-
         //commands
         vorpal
             .command('skills', 'Outputs "loaded skills".')
@@ -76,6 +75,17 @@ let onStart = async function(){
                 }
             })
             .autocomplete(skills);
+
+        // vorpal
+        //     .command('fix <filename>', 'fix a skill.')
+        //     .option('-issue, --issue <key>', 'Specifies the API key')
+        //     .action(async function(args: any, callback: () => void) {
+        //         //@ts-ignore
+        //         let resultFix = await fix_skill("./skills/"+args.filename,args.options.issue,"")
+        //         console.log('resultFix: ', resultFix);
+        //         callback();
+        //     })
+        //     .autocomplete(skills);
 
         vorpal
             .command('fix <filename>', 'fix a skill.')
@@ -158,6 +168,9 @@ let onStart = async function(){
                 callback();
             });
 
+
+        //https://pbs.twimg.com/profile_images/1422284737993969668/9HtSLXCm_400x400.jpg
+
         log.info(
             "\n",
             "Pioneer-cli"
@@ -189,4 +202,18 @@ let onStart = async function(){
         log.error(e)
     }
 }
+
+//test mode
+let onTest = async function(){
+    try{
+        //
+        let filename = 'get-open-issues.sh'
+        let issue = "format the output of the open issues into a ascii table"
+        let resultFix = await fix_skill("./skills/"+filename,issue,"")
+        console.log('resultFix: ', resultFix);
+    }catch(e){
+        console.error(e)
+    }
+}
+// onTest()
 onStart()

@@ -9,13 +9,21 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import {exec, execSync} from 'child_process';
 import * as path from 'path';
 import fs from "fs"; // for path normalization
-const short = require('short-uuid');
-const log = require('@pioneer-platform/loggerdog')()
-let wait = require('wait-promise');
-let sleep = wait.sleep;
 import { BufferMemory } from "langchain/memory";
 import { PromptTemplate } from "langchain/prompts";
 import { LLMChain } from "langchain/chains";
+//@ts-ignore
+import {query} from "@pioneer-platform/langchain";
+const short = require('short-uuid');
+const log = require('@pioneer-platform/loggerdog')()
+let wait = require('wait-promise');
+let ai = require('@pioneer-platform/pioneer-intelligence')
+let OPENAI_API_KEY = process.env['OPENAI_API_KEY']
+if(!OPENAI_API_KEY) throw Error("OPENAI_API_KEY key required!")
+ai.init(OPENAI_API_KEY)
+let sleep = wait.sleep;
+
+
 import {
     StructuredOutputParser,
     RegexParser,
@@ -52,8 +60,25 @@ export async function fix_skill(skill: string, issue:any, context:any): Promise<
         //wite the bash script to file with a new version number in the name of the wile. aka skill_v1.sh
 
         // Resolve the relative path to an absolute path
-
+        let ENV_VARS = ['API_KEY','OPENAI_API_KEY','GH_TOKEN']
         const script = fs.readFileSync(skill, 'utf8');
+        let work:any = {
+            script,
+            issue,
+            context:ENV_VARS
+        }
+        work = JSON.stringify(work)
+        let result = await ai.fixScript(work, context)
+        log.info(tag,"result: ",result)
+        log.info(tag,"result: ",typeof(result))
+
+        // if(typeof(result) === "string") result = JSON.parse(result)
+        if(!result.script) throw Error("Invalid result! missing script")
+        // if(!result.summary) throw Error("Invalid result! missing summary")
+        // if(!result.keywords) throw Error("Invalid result! missing keywords")
+        // if(!result.inputs) throw Error("Invalid result! missing keywords")
+        // if(!result.inputsCount) throw Error("Invalid result! missing inputsCount")
+
         // log.info("script: ",script)
         // Prompt the AI with the issue and context
         // const prompt = `Please fix the following bash script:\n\n${script}\n\nIssue: ${issue}\n\nContext: ${context}`;
@@ -67,40 +92,40 @@ export async function fix_skill(skill: string, issue:any, context:any): Promise<
         // let result = response.choices[0].text.trim();
         //
         // // Write the updated script to a new file with a version number appended to the name
-        // const newFilePath = path.join(__dirname, `${skill}_v1.sh`);
-        // fs.writeFileSync(newFilePath, result, 'utf8');
+        const newFilePath = path.join(__dirname, `${skill}_v1.sh`);
+        fs.writeFileSync(newFilePath, result.script, 'utf8');
         //
         // log.info("result: ", result)
         // return result;
 
-        const answerParser = StructuredOutputParser.fromNamesAndDescriptions({
-            answer: "fix the bash script for the given issue",
-            source: "source used to answer the user's bash script.",
-        });
-
-        const confidenceParser = new RegexParser(
-            /Confidence: (.*), Explanation: (.*)/,
-            ["confidence", "explanation"],
-            "noConfidence"
-        );
-
-        const parser = new CombiningOutputParser(answerParser, confidenceParser);
-
-        const formatInstructions = parser.getFormatInstructions();
-
-        const prompt = new PromptTemplate({
-            template: "fix the bash script for the given issue.\n{script}\n{issue}\n{context}",
-            inputVariables: ["script","issue","context"],
-            partialVariables: { format_instructions: formatInstructions },
-        });
-        log.info(tag,"prompt: ",prompt)
-
-        const model = new OpenAI({ temperature: .9 });
-
-        const input = await prompt.format({
-            script, issue, context
-        });
-        log.info(tag,"input: ",input)
+        // const answerParser = StructuredOutputParser.fromNamesAndDescriptions({
+        //     answer: "fix the bash script for the given issue",
+        //     source: "source used to answer the user's bash script.",
+        // });
+        //
+        // const confidenceParser = new RegexParser(
+        //     /Confidence: (.*), Explanation: (.*)/,
+        //     ["confidence", "explanation"],
+        //     "noConfidence"
+        // );
+        //
+        // const parser = new CombiningOutputParser(answerParser, confidenceParser);
+        //
+        // const formatInstructions = parser.getFormatInstructions();
+        //
+        // const prompt = new PromptTemplate({
+        //     template: "fix the bash script for the given issue.\n{script}\n{issue}\n{context}",
+        //     inputVariables: ["script","issue","context"],
+        //     partialVariables: { format_instructions: formatInstructions },
+        // });
+        // log.info(tag,"prompt: ",prompt)
+        //
+        // const model = new OpenAI({ temperature: .9 });
+        //
+        // const input = await prompt.format({
+        //     script, issue, context
+        // });
+        // log.info(tag,"input: ",input)
 
         // const response = await model.call(input);
         // let result = await parser.parse(response);
@@ -131,7 +156,7 @@ export async function fix_skill(skill: string, issue:any, context:any): Promise<
         // const response = await model.call(input);
         // let result = await parser.parse(response)
         // log.info("result: ", result)
-        // return result
+        return result.summary
     }catch(e){
         console.error(e);
         throw e;
@@ -197,12 +222,16 @@ export async function perform_skill(skill: any, inputs: any) {
     }
 }
 
-export async function init(message: any): Promise<void> {
+export async function init(): Promise<void> {
     const tag = TAG + " | handle_input | "
     try{
-        log.info("message: ",message)
-        const res1 = await chain.call({ input: "Hi! I'm Morpheus." });
-        log.info("bot: ",res1)
+        //load the modal
+
+        //does data/db.txt exist?
+
+        //if not, create it
+
+
     }catch(e){
         console.error(e)
     }
@@ -213,11 +242,15 @@ export async function handle_input(message: any): Promise<void> {
     try{
         log.info("message: ",message)
 
-        const res1 = await chain.call({ input: message });
-        log.info("res1: ",res1)
+        // query
+        let res = await query(message)
+        log.info("res =: ",res)
+
+        // const res1 = await chain.call({ input: message });
+        // log.info("res1: ",res1)
 
         //text
-        return res1.text
+        return res.text
     }catch(e){
         console.error(e)
     }
