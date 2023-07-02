@@ -11,11 +11,17 @@
     "postbuild": "copyfiles -u 1 src/**/*.js dist"
   },
   "dependencies": {
+    "@keepkey/hdwallet-keepkey-rest": "^1.40.35",
+    "@keepkey/keepkey-sdk": "^0.2.49",
     "@pioneer-platform/langchain": "1.0.4",
     "@pioneer-platform/loggerdog": "^8.1.18",
     "@pioneer-platform/pioneer-intelligence": "^8.1.14",
+    "@pioneer-sdk/sdk": "^1.1.123",
+    "@shapeshiftoss/hdwallet-core": "^1.50.4",
+    "@shapeshiftoss/hdwallet-native": "^1.50.4",
     "@types/inquirer": "^9.0.3",
     "@types/node": "^20.1.4",
+    "bip39": "^3.1.0",
     "chalk": "^5.2.0",
     "dotenv": "^16.0.3",
     "figlet": "^1.6.0",
@@ -26,6 +32,7 @@
     "openai": "^3.2.1",
     "short-uuid": "^4.2.2",
     "typescript": "^5.0.4",
+    "uuid": "^9.0.0",
     "vorpal": "^1.12.0",
     "vorpal-autocomplete-fs": "^0.0.3",
     "wait-promise": "^0.4.1"

@@ -3,9 +3,9 @@ import * as dotenv from "dotenv";
 dotenv.config()
 dotenv.config({path:'../../.env'})
 //cli tools
-import {fix_skill, handle_input, perform_skill, create_skill, autonomous, init} from "./pioneer";
+import {fix_skill, handle_input, perform_skill, create_skill, autonomous, init} from "./engine";
 import {publish} from "./skills";
-
+import { onStartPioneer } from "./pioneer";
 // import inquirer from 'inquirer';
 // const fsAutocomplete = require('vorpal-autocomplete-fs');
 
@@ -39,6 +39,8 @@ let onStart = async function(){
     try{
         await refreshSkills()
 
+        //start wallet
+        onStartPioneer()
         //welcome
 
         //initial setup

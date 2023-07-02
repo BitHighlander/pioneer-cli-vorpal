@@ -1,6 +1,6 @@
 const TAG = " | skills | "
 
-import {perform_skill} from "./pioneer";
+import {perform_skill} from "./engine";
 
 const log = require('@pioneer-platform/loggerdog')()
 import * as path from 'path';

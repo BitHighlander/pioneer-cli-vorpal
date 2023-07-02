@@ -1,318 +1,220 @@
-import util from "util";
-
-let TAG = " app "
-import { OpenAI } from "langchain/llms/openai";
-import { VectorDBQAChain } from "langchain/chains";
-import { HNSWLib } from "langchain/vectorstores";
-import { OpenAIEmbeddings } from "langchain/embeddings";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import {exec, execSync} from 'child_process';
-import * as path from 'path';
-import fs from "fs"; // for path normalization
-import { BufferMemory } from "langchain/memory";
-import { PromptTemplate } from "langchain/prompts";
-import { LLMChain } from "langchain/chains";
+import { KkRestAdapter } from "@keepkey/hdwallet-keepkey-rest";
+import { KeepKeySdk } from "@keepkey/keepkey-sdk";
+import { SDK } from "@pioneer-sdk/sdk";
+import * as core from "@shapeshiftoss/hdwallet-core";
+import type { NativeHDWallet } from "@shapeshiftoss/hdwallet-native";
+import { NativeAdapter } from "@shapeshiftoss/hdwallet-native";
+import { entropyToMnemonic } from "bip39";
 //@ts-ignore
-import {query} from "@pioneer-platform/langchain";
-const short = require('short-uuid');
-const log = require('@pioneer-platform/loggerdog')()
-let wait = require('wait-promise');
-let ai = require('@pioneer-platform/pioneer-intelligence')
-let OPENAI_API_KEY = process.env['OPENAI_API_KEY']
-if(!OPENAI_API_KEY) throw Error("OPENAI_API_KEY key required!")
-ai.init(OPENAI_API_KEY)
-let sleep = wait.sleep;
+import { v4 as uuidv4 } from "uuid";
 
-
-import {
-    StructuredOutputParser,
-    RegexParser,
-    CombiningOutputParser,
-} from "langchain/output_parsers";
-const model = new OpenAI({ temperature: 0.9 });
-const memory = new BufferMemory({ memoryKey: "chat_history" });
-
-const template = `The following is a conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know.
-      Current conversation:
-      {chat_history}
-      Human: {input}
-      AI:`;
-
-//Instantiate "PromptTemplate" passing the prompt template string initialized above
-const prompt = PromptTemplate.fromTemplate(template);
-const chainPrompt = new LLMChain({ llm: model, prompt, memory });
-let chainCode:any
-let docs:any
-export async function init(): Promise<void> {
-    const tag = TAG + " | init | "
-    try{
-        console.log("init: ")
-        //load the modal
-        let files = fs.readdirSync("./data/");
-        let ALL_MEMORY = []
-        for(let i = 0; i < files.length; i++){
-            console.log("filename: ",files[i])
-            //Load in the file containing the content on which we will be performing Q&A
-            //The answers to the questions are contained in this file
-            const text = fs.readFileSync("./data/"+files[i], "utf8");
-            ALL_MEMORY.push(text)
-        }
-
-        //console.log("text: ",text)
-        const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: 2000 });
-        //Create documents from the split text as required by subsequent calls
-        docs = await textSplitter.createDocuments(ALL_MEMORY);
-        const vectorStore = await HNSWLib.fromDocuments(docs, new OpenAIEmbeddings());
-
-        //Create the LangChain.js chain consting of the LLM and the vector store
-        chainCode = VectorDBQAChain.fromLLM(model, vectorStore);
-        // const queryChain = VectorDBQAChain.fromLLM(model, vectorStore);
-        // console.log("chain: ",queryChain)
-
-        //if not, create it
-        log.info("loaded ",files)
-
-    }catch(e){
-        console.error(e)
-    }
+export enum WalletActions {
+    SET_STATUS = "SET_STATUS",
+    SET_USERNAME = "SET_USERNAME",
+    SET_USER = "SET_WALLETS",
+    SET_CONTEXT = "SET_CONTEXT",
+    SET_BLOCKCHAIN = "SET_BLOCKCHAIN",
+    SET_ASSET = "SET_ASSET",
+    SET_API = "SET_API",
+    SET_APP = "SET_APP",
+    SET_WALLET = "SET_WALLET",
+    ADD_WALLET = "ADD_WALLET",
+    RESET_STATE = "RESET_STATE",
 }
 
-export async function autonomous(): Promise<any> {
-    const tag = TAG + " | autonomous | "
-    try{
-        //get issues
-        // let issues = await perform_skill("./skills/get-open-issues.sh",{})
-        // log.info(tag,"issues: ",issues)
-        //
-        // // Extract and clean content
-        // let cleanedIssues = issues.map(issue => {
-        //     let content = issue.content;
-        //     // Remove everything before the first '+' character
-        //     let plusIndex = content.indexOf('+');
-        //     if(plusIndex >= 0) {
-        //         // If '+' character found in content string
-        //         content = content.substring(plusIndex + 1);
-        //     }
-        //     return content;
-        // });
-        // log.info("cleanedIssues: ",cleanedIssues)
-        let prompt = "You a coder bot. The github project has a list of issues. the issue you are solving is titled: Missing README.md  the ticket says to:  map the projects CLI commands, give examples for each. explain what the code* function is doing. add the following image https://cdn-images-1.medium.com/v2/resize:fit:800/1*OSuGUiCB4zyp9oG0ONkGjw.png at the top of the README.md file.  "
-        //create task from issue
-        // issues = JSON.stringify(issues)
-        // issues.replace()
-        let task = await ai.buildTask(prompt)
-        log.info(tag,"task: ",task)
-
-        //load repo into memory
-
-        //perform task
-
-        //perform steps
-
-        //return result
-
-        return
-    }catch(e){
-        console.error(e);
-        throw e;
-    }
+export interface InitialState {
+    status: any;
+    username: string;
+    serviceKey: string;
+    queryKey: string;
+    context: string;
+    balances: any[];
+    pubkeys: any[];
+    wallets: any[];
+    walletDescriptions: any[];
+    totalValueUsd: number;
+    user: any;
+    wallet: any;
+    app: any;
+    api: any;
 }
 
-export async function create_skill(skill: any, inputs:any, outputs:any, context:any): Promise<any> {
-    const tag = TAG + " | handle_input | "
-    try{
-        log.info(tag,"skill: ",skill)
-        log.info(tag,"inputs: ",inputs)
-        log.info(tag,"outputs: ",outputs)
+const initialState: InitialState = {
+    status: "disconnected",
+    username: "",
+    serviceKey: "",
+    queryKey: "",
+    context: "",
+    balances: [],
+    pubkeys: [],
+    wallets: [],
+    walletDescriptions: [],
+    totalValueUsd: 0,
+    user: null,
+    wallet: null,
+    app: null,
+    api: null,
+};
 
-        let result = await ai.buildScript(skill, inputs, outputs, context)
-        log.info(tag,"result: ",result)
+export type ActionTypes =
+    | { type: WalletActions.SET_STATUS; payload: any }
+    | { type: WalletActions.SET_USERNAME; payload: string }
+    | { type: WalletActions.SET_WALLET; payload: any }
+    | { type: WalletActions.SET_APP; payload: any }
+    | { type: WalletActions.SET_API; payload: any }
+    | { type: WalletActions.SET_USER; payload: any }
+    | { type: WalletActions.SET_CONTEXT; payload: any }
+    | { type: WalletActions.ADD_WALLET; payload: any }
+    | { type: WalletActions.RESET_STATE };
 
-        //write the skill to file
-        const path = require('path');
-        const fs = require('fs');
-        //@ts-ignore
-        const newFilePath = path.join(__dirname, '..', 'skills', `${result.scriptName}_untested.sh`);
-        log.info(tag,"newFilePath: ",newFilePath)
-        fs.writeFileSync(newFilePath, result.script, 'utf8');
-
-        //execute the skill
-
-        //return the result
-
-        return result
-    }catch(e){
-        console.error(e);
-        throw e;
+const reducer = (state: InitialState, action: ActionTypes) => {
+    switch (action.type) {
+        case WalletActions.SET_STATUS:
+            return { ...state, status: action.payload };
+        case WalletActions.SET_CONTEXT:
+            return { ...state, context: action.payload };
+        case WalletActions.SET_USERNAME:
+            return { ...state, username: action.payload };
+        case WalletActions.SET_WALLET:
+            return { ...state, wallet: action.payload };
+        case WalletActions.ADD_WALLET:
+            return { ...state, wallets: [...state.wallets, action.payload] };
+        case WalletActions.SET_APP:
+            return { ...state, app: action.payload };
+        case WalletActions.SET_API:
+            return { ...state, api: action.payload };
+        case WalletActions.SET_USER:
+            return { ...state, user: action.payload };
+        case WalletActions.RESET_STATE:
+            return {
+                ...state,
+                api: null,
+                user: null,
+                username: null,
+                context: null,
+                status: null,
+            };
+        default:
+            return state;
     }
+};
+
+const state: InitialState = { ...initialState };
+
+function setStatus(payload: any) {
+    state.status = payload;
 }
 
-export async function fix_skill(skill: string, issue:any, context:any): Promise<any> {
-    const tag = TAG + " | handle_input | ";
-    let script = '', scriptWorking = '';
-    try{
-        log.info(tag,"skill: ",skill);
-        log.info(tag,"context: ",context);
-        log.info(tag,"issue: ",issue);
-
-        try {
-            script = fs.readFileSync(path.join(__dirname, '..', 'skills', `${skill}`), 'utf8');
-        } catch (error: any) {
-            if (error.code === 'ENOENT') {
-                log.warn(tag, `File not found, but continuing: ${error.message}`);
-            } else {
-                throw error;
-            }
-        }
-
-        if (skill.includes('_untested')) {
-            let skillWorking = skill.replace('_untested', '');
-            log.info(tag,"skillWorking1: ",skillWorking);
-            skillWorking = skillWorking.replace(/_v\d+(?=.sh$)/, '');
-            log.info(tag,"skillWorking2: ",skillWorking);
-            const scriptPath = path.join(__dirname, '..', 'skills', `${skillWorking}`);
-            log.info(tag,"scriptPath: ",scriptPath);
-
-            try {
-                scriptWorking = fs.readFileSync(scriptPath, 'utf8');
-                context = {
-                    skill: skillWorking,
-                    working: true,
-                    script: scriptWorking
-                };
-            } catch (error: any) {
-                if (error.code === 'ENOENT') {
-                    log.warn(tag, `Error reading script, file not found but continuing: ${error.message}`);
-                    context = {
-                        skill: skillWorking,
-                        working: false,
-                        script: null
-                    };
-                } else {
-                    throw error;
-                }
-            }
-        }
-        log.info(tag,"context: ",context);
-        let result = await ai.fixScript(script, issue, context);
-        log.info(tag,"result: ",result);
-        log.info(tag,"result type: ",typeof(result));
-
-        if(!result.script) throw Error("Invalid result! Missing script");
-
-        skill = skill.replace(".sh","");
-
-        const versionMatch = skill.match(/_v(\d+)/);
-        let versionNumber = 1;
-        if (versionMatch) {
-            versionNumber = parseInt(versionMatch[1]) + 1;
-            skill = skill.replace(/_v\d+/, `_v${versionNumber}`);
-        } else {
-            skill += `_v${versionNumber}`;
-        }
-
-        skill = skill.replace(/_untested/, '');
-        skill += "_untested";
-
-        const newFilePath = path.join(__dirname,'..', 'skills', `${skill}.sh`);
-        fs.writeFileSync(newFilePath, result.script, 'utf8');
-        result.skillName = `${skill}.sh`;
-        return result;
-    }catch(e: any){
-        log.error(tag, 'Error in fix_skill: ', e.message);
-        throw e;
-    }
+function setContext(payload: any) {
+    state.context = payload;
 }
 
+function setBlockchainContext(payload: any) {
+    // Implement the logic for setting the blockchain context in your state
+}
 
+function setAssetContext(payload: any) {
+    // Implement the logic for setting the asset context in your state
+}
 
-export async function perform_skill(skill: any, inputs: any) {
-    let tag = TAG + " | perform_skill | ";
+async function checkKeepkeyAvailability() {
+    // Implement the logic to check the availability of KeepKey
+    return true; // Replace with your implementation
+}
+
+export const onStartPioneer = async function () {
     try {
-        let messages = [];
-        let cmd = "bash "+skill;
-        log.info(tag, "cmd: ", cmd);
-        try {
-            const TIMEOUT_MS = 60000; // 60 seconds
+        const serviceKey = process.env["QUERY_KEY"];
+        let queryKey = serviceKey
+        let username = process.env['USERNAME']
 
-            const startTime = Date.now();
-            const elapsedTime = Date.now() - startTime;
-            if (elapsedTime > TIMEOUT_MS) {
-                throw new Error("Timeout: Script took too long to execute.");
-            }
-
-            let {stdout, stderr } = await util.promisify(exec)(cmd);
-            log.info(tag, "stdout: ", stdout);
-            log.info(tag, "stderr: ", stderr);
-
-            if(stdout && stdout.length > 0 && stdout !== "null\\n"){
-                log.info(tag, "Valid Execution: ", stdout);
-
-                // Attempt to parse stdout as JSON
-                let stdoutData;
-                try {
-                    stdoutData = JSON.parse(stdout);
-                    stdout = JSON.stringify(stdoutData, null, 2); // Prettify JSON if possible
-                } catch (err) {
-                    // If stdout is not JSON, treat it as plain text
-                }
-
-                messages.push({
-                    role: "assistant",
-                    content: stdout
-                });
-            } else if(stderr){
-                messages.push({
-                    role: "user",
-                    content: "That errored: error: " + stderr
-                });
-            } else if(stdout == "null\\n") {
-                messages.push({
-                    role: "user",
-                    content: "That returned null, you should add error handling to the script"
-                });
-            } else {
-                messages.push({
-                    role: "user",
-                    content: "Something is wrong, not getting any good output"
-                });
-            }
-        } catch(e){
-            log.error(tag,"error: ",e);
-            messages.push({
-                role: "user",
-                content: "Error: "+ e?.toString()
-            });
+        if (!queryKey) {
+            queryKey = `key:${uuidv4()}`;
+        }
+        if (!username) {
+            username = `user:${uuidv4()}`;
+            username = username.substring(0, 13);
         }
 
-        return messages;
-    } catch(e) {
-        console.error(e);
-        throw e;
-    }
-}
+        const keyring = new core.Keyring();
+        const blockchains = [
+            "bitcoin",
+            "ethereum",
+            "thorchain",
+            "bitcoincash",
+            "litecoin",
+            "binance",
+            "cosmos",
+            "dogecoin",
+        ];
 
-export async function handle_input(message: any): Promise<void> {
-    const tag = TAG + " | handle_input | "
-    try{
-        log.info("message: ",message)
+        const paths: any = [];
+        const spec =
+            process.env["PIONEER_URL_SPEC"] || "https://pioneers.dev/spec/swagger.json";
+        const wss = process.env["PIONEER_URL_WS"] || "wss://pioneers.dev";
+        const config: any = {
+            blockchains,
+            username,
+            queryKey,
+            spec,
+            wss,
+            paths,
+        };
 
-        // query
-        // let res = await query(message)
-        // log.info("res =: ",res)
+        let app = new SDK(spec, config);
+
+        let walletKeepKey: core.HDWallet | null = null;
+        const isKeepkeyAvailable = await checkKeepkeyAvailability();
+
+        if (isKeepkeyAvailable) {
+            const config: any = {
+                apiKey: serviceKey || "notSet",
+                pairingInfo: {
+                    name: "Pioneer",
+                    imageUrl: "https://i.imgur.com/BdyyJZS.png",
+                    basePath: "http://localhost:1646/spec/swagger.json",
+                    url: "https://pioneer-template.vercel.com",
+                },
+            };
+            const sdkKeepKey = await KeepKeySdk.create(config);
+            //@ts-ignore
+            walletKeepKey = await KkRestAdapter.useKeyring(keyring).pairDevice(sdkKeepKey);
+
+            const successKeepKey = await app.pairWallet(walletKeepKey);
+        }
+
+        //TODO init software if no keepkey
+
+        let walletSoftware: core.HDWallet | null = null;
+
+        if (!isKeepkeyAvailable && !walletSoftware) {
+            console.log("No wallets found! Unable to continue.");
+        } else {
+            const walletPreferred: core.HDWallet | null = walletKeepKey || walletSoftware;
+
+            //@ts-ignore
+            setContext(walletPreferred?.type);
+            state.wallet = walletPreferred;
+
+            const api = await app.init(walletPreferred);
+
+            //@ts-ignore
+            if (api) {
+                state.app = app;
+                state.api = api;
+
+                //@ts-ignore
+                const user = await api.User();
+                console.log("user: ", user.data);
+
+                setBlockchainContext(user.data.blockchainContext);
+                setAssetContext(user.data.assetContext);
+            }
+        }
 
         //
-        // const res = await chainCode.call({
-        //     input_documents: docs,
-        //     query: message,
-        // });
 
-        const res1 = await chainPrompt.call({ input: message });
-        log.info("res1: ",res1)
-
-        //text
-        return res1.text
-    }catch(e){
-        console.error(e)
+    } catch (e) {
+        console.error(e);
     }
-}
+};
