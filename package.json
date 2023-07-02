@@ -1,7 +1,8 @@
 {
-  "name": "commander-example",
+  "name": "pioneer-cli",
   "version": "1.0.0",
-  "description": "Commander.js CLI example",
+  "description": "Pioneer AI CLI tool",
+  "author": "Highlander",
   "main": "dist/index.js",
   "scripts": {
     "start": "ts-node src/index.ts",
