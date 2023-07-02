@@ -3,11 +3,11 @@ import * as dotenv from "dotenv";
 dotenv.config()
 dotenv.config({path:'../../.env'})
 //cli tools
-import {fix_skill, handle_input, perform_skill} from "./pioneer";
+import {fix_skill, handle_input, perform_skill, create_skill, autonomous, init} from "./pioneer";
+import {publish} from "./skills";
 
 // import inquirer from 'inquirer';
 // const fsAutocomplete = require('vorpal-autocomplete-fs');
-
 
 import util from "util";
 import {showWelcome} from './ascii';
@@ -56,25 +56,84 @@ let onStart = async function(){
             .autocomplete(skills);
 
         vorpal
-            .command('run <filename>', 'Perform a skill.')
+            .command('autonomous', '')
+            .action(function(args:any, callback:any) {
+                //autonomous
+                autonomous()
+                callback()
+            })
+            .autocomplete(skills);
+
+        vorpal
+            .command('publish <filename>', 'publish a skill as working and ready')
+            .action(function(args:any, callback:any) {
+
+            })
+            .autocomplete(skills);
+
+        vorpal
+            .command('create', 'create a skill.')
             .action(async function(args:any, callback:any) {
-                let tag = " | run | "
+                let tag = " | create | "
                 try{
-                    // Respond to the input here
-                    const filename = args.filename;
-                    const scriptPath = path.join(__dirname, '..', 'skills', `${filename}`);
-                    log.info(tag,"scriptPath: ",scriptPath)
-                    //TODO - check if file exists
-                    //TODO - read bash file and determine inputs needed
-                    //TODO - inquire about inputs
-                    let result = await perform_skill(scriptPath,[])
-                    log.info(tag,"result: ",result)
-                    callback();
+                    //@ts-ignore
+                    this.prompt([
+                        {
+                            type: 'input',
+                            name: 'skill',
+                            message: 'describe the skill:'
+                        },
+                        {
+                            type: 'input',
+                            name: 'input',
+                            message: 'describe the inputs to the skill (or leave empty):'
+                        },
+                        {
+                            type: 'input',
+                            name: 'output',
+                            message: 'describe the outputs of the skill(or leave empty): '
+                        },
+                        {
+                            type: 'input',
+                            name: 'context',
+                            message: 'describe any extra context needed for the skill '
+                        }
+                    ], async (results: { skill: any; input: any; output: any; context:any }) => {
+                        console.log('Your skill is: ', results.skill);
+                        console.log('Your input is: ', results.input);
+                        console.log('Your output is: ', results.output);
+                        console.log('Your context is: ', results.context);
+                        let resultCreate = await create_skill(results.skill,results.input,results.output,results.context)
+                        console.log('resultCreate: ', resultCreate);
+                        callback();
+                    });
                 }catch(e){
                     console.log(e)
                 }
             })
             .autocomplete(skills);
+
+        // vorpal
+        //     .command('run <filename>', 'Perform a skill.')
+        //     .action(async function(args:any, callback:any) {
+        //         let tag = " | run | "
+        //         try{
+        //             // Respond to the input here
+        //             const filename = args.filename;
+        //             //@ts-ignore
+        //             const scriptPath = path.join(__dirname, '..', 'skills', `${filename}`);
+        //             log.info(tag,"scriptPath: ",scriptPath)
+        //             //TODO - check if file exists
+        //             //TODO - read bash file and determine inputs needed
+        //             //TODO - inquire about inputs
+        //             let result = await perform_skill(scriptPath,[])
+        //             log.info(tag,"result: ",result)
+        //             callback();
+        //         }catch(e){
+        //             console.log(e)
+        //         }
+        //     })
+        //     .autocomplete(skills);
 
         // vorpal
         //     .command('fix <filename>', 'fix a skill.')
@@ -87,30 +146,114 @@ let onStart = async function(){
         //     })
         //     .autocomplete(skills);
 
-        vorpal
-            .command('fix <filename>', 'fix a skill.')
-            .action(async function(args: any, callback: () => void) {
+        async function mark_file_broke(filepath: string) {
+            //@ts-ignore
+            let directory = path.dirname(filepath);
+            //@ts-ignore
+            let filename = path.basename(filepath);
+            //@ts-ignore
+            let brokenPath = path.join(directory, 'broken_' + filename);
+
+            fs.rename(filepath, brokenPath, function(err:any) {
+                if (err) throw err;
+                console.log('File is marked as broken!');
+            });
+        }
+
+        function increment_filename(filename: string): string {
+            let parts = filename.split('_');
+            let lastPart = parts.pop();
+            let versionRegex = /v(\d+)/;
+            //@ts-ignore
+            let versionMatch = versionRegex.exec(lastPart);
+
+            if (versionMatch) {
+                let versionNumber = parseInt(versionMatch[1]);
+                versionNumber++;  // Increment version number
+
+                // Replace old version number with incremented version number
                 //@ts-ignore
-                this.prompt([
+                let newLastPart = lastPart.replace(versionRegex, 'v' + versionNumber);
+
+                parts.push(newLastPart);
+                return parts.join('_');
+            } else {
+                console.error('Unable to parse filename version: ' + filename);
+                return filename;
+            }
+        }
+
+        // Support function for recursive prompts
+        async function runSkillLoop(this: any, args: any, callback: () => void) {
+            //@ts-ignore
+            let scriptPath = path.join(__dirname, '..', 'skills', `${args.filename}`);
+
+            // Running skill and collecting result
+            let result = await perform_skill(scriptPath,[])
+
+            console.log('result: ', result);
+            console.log('result: ', JSON.stringify(result));
+
+            // Prompt for user feedback on output
+            const resultChoice = await this.prompt([
+                {
+                    type: 'list',
+                    name: 'choice',
+                    message: 'is this output suffecient? ',
+                    choices: ['correct', 'improve (fixme)']
+                }
+            ]);
+
+            console.log('Your choice is: ', resultChoice.choice);
+            if(resultChoice.choice == "correct"){
+                log.info("Running skill successful");
+                publish(scriptPath)
+                callback();
+            } else {
+                log.info("Skill run unsuccessful, marking file as broke");
+                // // Logic for marking file as broke
+                // // You need to implement 'mark_file_broke' function
+                // await mark_file_broke(scriptPath);
+
+                const results = await this.prompt([
                     {
                         type: 'input',
                         name: 'issue',
                         message: 'describe the issue: '
                     },
                     {
-                        type: 'extra context',
+                        type: 'input',
                         name: 'context',
-                        message: 'provide context or extra info: '
+                        message: '(output already included) provide context or extra info: '
                     }
-                ], async (results: { issue: any; context: any; }) => {
-                    console.log('Your context is: ', results.context);
-                    console.log('Your issue is: ', results.issue);
-                    let resultFix = await fix_skill("./skills/"+args.filename,results.issue,results.context)
-                    // console.log('resultFix: ', resultFix);
-                    // callback();
-                });
+                ]);
+
+                console.log('Your context is: ', results.context);
+                console.log('Your issue is: ', results.issue);
+                results.context = "script output was: "+ JSON.stringify(result) +" user included content is: " + results.context
+                let resultFix = await fix_skill(args.filename,results.issue,results.context)
+                console.log('resultFix: ', resultFix);
+
+                // Change filename for next iteration
+                args.filename = resultFix.skillName; // You need to implement 'increment_filename' function
+                log.info("===========================================")
+                log.info("CREATED NEW SKILL: ",args.filename)
+                log.info("===========================================")
+                refreshSkills()
+                log.info("skills: ",skills)
+                await runSkillLoop.call(this, args, callback);  // Use .call() here
+            }
+        }
+
+        // Run command definition
+        vorpal
+            .command('run <filename>', 'Perform a skill.')
+            .action(async function(args: any, callback: () => void) {
+                //@ts-ignore
+                await runSkillLoop.call(this, args, callback);  // Use .call() here
             })
             .autocomplete(skills);
+
 
         vorpal
             .command('ls', 'list a directory.')
@@ -162,6 +305,7 @@ let onStart = async function(){
                 const input = args.input.join(' ');
                 let result = await handle_input(input);
                 log.info("result: ",result)
+                log.info("result(string): ",JSON.stringify(result))
                 // Respond to the input here
                 // @ts-ignore
                 // this.log('You entered:', input);
@@ -206,14 +350,27 @@ let onStart = async function(){
 //test mode
 let onTest = async function(){
     try{
+
+        // let filename = 'get-open-issues_v2_untested.sh'
+        // let issue = "the output does not contain the issue at all now"
         //
-        let filename = 'get-open-issues.sh'
-        let issue = "format the output of the open issues into a ascii table"
-        let resultFix = await fix_skill("./skills/"+filename,issue,"")
-        console.log('resultFix: ', resultFix);
+        // let context = "It outputted this: [  {    role: 'assistant',    content: 'Fetching open issues for repository BitHighlander/pioneer-cli-vorpal\\n' +      'Open issues:\\n' +      'Missing README.md  open  https://github.com/BitHighlander/pioneer-cli-vorpal/issues/1\\n' +      '\\n' +      'Extra context:\\n' +      '404: Not Found\\n'  }] get-open-issues.sh works but output is not formatted correctly"
+        // let resultFix = await fix_skill(filename,issue,context)
+        // console.log('resultFix: ', resultFix);
+
+        // let skill = "write lol to a text file"
+        // let inputs = ""
+        // let outputs = "true"
+        // let context = ""
+        // let resultFix = await create_skill(skill,inputs,outputs, context)
+        // console.log('resultFix: ', resultFix);
+
+        //autonomous
+        // autonomous()
     }catch(e){
         console.error(e)
     }
 }
 // onTest()
 onStart()
+init()

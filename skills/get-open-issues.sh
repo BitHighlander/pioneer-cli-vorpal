@@ -18,8 +18,9 @@ if [ -d .git ] || git rev-parse --git-dir > /dev/null 2>&1; then
             # Fetch open issues from GitHub API
             issues=$(curl -s "https://api.github.com/repos/$user/$repo/issues?state=open")
 
+            # Format the output of the open issues into a ascii table
             echo "Open issues:"
-            echo "$issues"
+            echo "$issues" | jq -c -r '.[] | [.title, .state, .html_url, .body, .created_at, .updated_at, .assignee.login, .labels[].name] | @tsv' | sed 's/\t/|/g' | column -s '|' -t
         else
             echo "This repository is not hosted on GitHub."
         fi

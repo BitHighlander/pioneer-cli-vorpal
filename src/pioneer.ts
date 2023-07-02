@@ -40,136 +40,198 @@ const template = `The following is a conversation between a human and an AI. The
 
 //Instantiate "PromptTemplate" passing the prompt template string initialized above
 const prompt = PromptTemplate.fromTemplate(template);
-const chain = new LLMChain({ llm: model, prompt, memory });
-
-export async function fix_skill(skill: string, issue:any, context:any): Promise<any> {
-    const tag = TAG + " | handle_input | "
+const chainPrompt = new LLMChain({ llm: model, prompt, memory });
+let chainCode:any
+let docs:any
+export async function init(): Promise<void> {
+    const tag = TAG + " | init | "
     try{
-        log.info(tag,"skill: ",skill)
-        log.info(tag,"context: ",context)
-        log.info(tag,"issue: ",issue)
-        //skill is a string representing the skill to be performed and its path to the bash script
-        //issue is the problem having with the skill
-
-        //read the skill from file, its a bash script that will be executed
-        //prmpt the AI to fix the skill
-        //prompt the AI the issue verbalized by the user
-        //add any extra info in the conext
-        //the AI will return a string of code to fix the skill
-        //parse the bash script from the result
-        //wite the bash script to file with a new version number in the name of the wile. aka skill_v1.sh
-
-        // Resolve the relative path to an absolute path
-        let ENV_VARS = ['API_KEY','OPENAI_API_KEY','GH_TOKEN']
-        const script = fs.readFileSync(skill, 'utf8');
-        let work:any = {
-            script,
-            issue,
-            context:ENV_VARS
+        console.log("init: ")
+        //load the modal
+        let files = fs.readdirSync("./data/");
+        let ALL_MEMORY = []
+        for(let i = 0; i < files.length; i++){
+            console.log("filename: ",files[i])
+            //Load in the file containing the content on which we will be performing Q&A
+            //The answers to the questions are contained in this file
+            const text = fs.readFileSync("./data/"+files[i], "utf8");
+            ALL_MEMORY.push(text)
         }
-        work = JSON.stringify(work)
-        let result = await ai.fixScript(work, context)
-        log.info(tag,"result: ",result)
-        log.info(tag,"result: ",typeof(result))
 
-        // if(typeof(result) === "string") result = JSON.parse(result)
-        if(!result.script) throw Error("Invalid result! missing script")
-        // if(!result.summary) throw Error("Invalid result! missing summary")
-        // if(!result.keywords) throw Error("Invalid result! missing keywords")
-        // if(!result.inputs) throw Error("Invalid result! missing keywords")
-        // if(!result.inputsCount) throw Error("Invalid result! missing inputsCount")
+        //console.log("text: ",text)
+        const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: 2000 });
+        //Create documents from the split text as required by subsequent calls
+        docs = await textSplitter.createDocuments(ALL_MEMORY);
+        const vectorStore = await HNSWLib.fromDocuments(docs, new OpenAIEmbeddings());
 
-        // log.info("script: ",script)
-        // Prompt the AI with the issue and context
-        // const prompt = `Please fix the following bash script:\n\n${script}\n\nIssue: ${issue}\n\nContext: ${context}`;
-        //
-        // // Call the AI model
-        // const model = new OpenAI({ temperature: .9 });
-        // const response = await model.call(prompt);
-        //
-        // // Parse the bash script from the result
-        // //@ts-ignore
-        // let result = response.choices[0].text.trim();
-        //
-        // // Write the updated script to a new file with a version number appended to the name
-        const newFilePath = path.join(__dirname, `${skill}_v1.sh`);
-        fs.writeFileSync(newFilePath, result.script, 'utf8');
-        //
-        // log.info("result: ", result)
-        // return result;
+        //Create the LangChain.js chain consting of the LLM and the vector store
+        chainCode = VectorDBQAChain.fromLLM(model, vectorStore);
+        // const queryChain = VectorDBQAChain.fromLLM(model, vectorStore);
+        // console.log("chain: ",queryChain)
 
-        // const answerParser = StructuredOutputParser.fromNamesAndDescriptions({
-        //     answer: "fix the bash script for the given issue",
-        //     source: "source used to answer the user's bash script.",
-        // });
-        //
-        // const confidenceParser = new RegexParser(
-        //     /Confidence: (.*), Explanation: (.*)/,
-        //     ["confidence", "explanation"],
-        //     "noConfidence"
-        // );
-        //
-        // const parser = new CombiningOutputParser(answerParser, confidenceParser);
-        //
-        // const formatInstructions = parser.getFormatInstructions();
-        //
-        // const prompt = new PromptTemplate({
-        //     template: "fix the bash script for the given issue.\n{script}\n{issue}\n{context}",
-        //     inputVariables: ["script","issue","context"],
-        //     partialVariables: { format_instructions: formatInstructions },
-        // });
-        // log.info(tag,"prompt: ",prompt)
-        //
-        // const model = new OpenAI({ temperature: .9 });
-        //
-        // const input = await prompt.format({
-        //     script, issue, context
-        // });
-        // log.info(tag,"input: ",input)
+        //if not, create it
+        log.info("loaded ",files)
 
-        // const response = await model.call(input);
-        // let result = await parser.parse(response);
-        // log.info("result: ", result);
+    }catch(e){
+        console.error(e)
+    }
+}
 
-        // const answerParser = StructuredOutputParser.fromNamesAndDescriptions({
-        //     answer: "fix the bash script for the given issue",
-        //     source: "source used to answer the user's bash script.",
-        // });
-        // const confidenceParser = new RegexParser(
-        //     /Confidence: (A|B|C), Explanation: (.*)/,
-        //     ["confidence", "explanation"],
-        //     "noConfidence"
-        // );
-        // const parser = new CombiningOutputParser(answerParser, confidenceParser);
-        // const formatInstructions = parser.getFormatInstructions();
+export async function autonomous(): Promise<any> {
+    const tag = TAG + " | autonomous | "
+    try{
+        //get issues
+        // let issues = await perform_skill("./skills/get-open-issues.sh",{})
+        // log.info(tag,"issues: ",issues)
         //
-        // const prompt = new PromptTemplate({
-        //     template:
-        //         "fix the bash script for the given issue.\n{script}\n{description}",
-        //     inputVariables: ["script","issue","context"],
-        //     partialVariables: { format_instructions: formatInstructions },
+        // // Extract and clean content
+        // let cleanedIssues = issues.map(issue => {
+        //     let content = issue.content;
+        //     // Remove everything before the first '+' character
+        //     let plusIndex = content.indexOf('+');
+        //     if(plusIndex >= 0) {
+        //         // If '+' character found in content string
+        //         content = content.substring(plusIndex + 1);
+        //     }
+        //     return content;
         // });
-        // const model = new OpenAI({ temperature: .9 });
-        // const input = await prompt.format({
-        //     script,issue,context
-        // });
-        // const response = await model.call(input);
-        // let result = await parser.parse(response)
-        // log.info("result: ", result)
-        return result.summary
+        // log.info("cleanedIssues: ",cleanedIssues)
+        let prompt = "You a coder bot. The github project has a list of issues. the issue you are solving is titled: Missing README.md  the ticket says to:  map the projects CLI commands, give examples for each. explain what the code* function is doing. add the following image https://cdn-images-1.medium.com/v2/resize:fit:800/1*OSuGUiCB4zyp9oG0ONkGjw.png at the top of the README.md file.  "
+        //create task from issue
+        // issues = JSON.stringify(issues)
+        // issues.replace()
+        let task = await ai.buildTask(prompt)
+        log.info(tag,"task: ",task)
+
+        //load repo into memory
+
+        //perform task
+
+        //perform steps
+
+        //return result
+
+        return
     }catch(e){
         console.error(e);
         throw e;
     }
 }
 
+export async function create_skill(skill: any, inputs:any, outputs:any, context:any): Promise<any> {
+    const tag = TAG + " | handle_input | "
+    try{
+        log.info(tag,"skill: ",skill)
+        log.info(tag,"inputs: ",inputs)
+        log.info(tag,"outputs: ",outputs)
+
+        let result = await ai.buildScript(skill, inputs, outputs, context)
+        log.info(tag,"result: ",result)
+
+        //write the skill to file
+        const path = require('path');
+        const fs = require('fs');
+        //@ts-ignore
+        const newFilePath = path.join(__dirname, '..', 'skills', `${result.scriptName}_untested.sh`);
+        log.info(tag,"newFilePath: ",newFilePath)
+        fs.writeFileSync(newFilePath, result.script, 'utf8');
+
+        //execute the skill
+
+        //return the result
+
+        return result
+    }catch(e){
+        console.error(e);
+        throw e;
+    }
+}
+
+export async function fix_skill(skill: string, issue:any, context:any): Promise<any> {
+    const tag = TAG + " | handle_input | ";
+    let script = '', scriptWorking = '';
+    try{
+        log.info(tag,"skill: ",skill);
+        log.info(tag,"context: ",context);
+        log.info(tag,"issue: ",issue);
+
+        try {
+            script = fs.readFileSync(path.join(__dirname, '..', 'skills', `${skill}`), 'utf8');
+        } catch (error: any) {
+            if (error.code === 'ENOENT') {
+                log.warn(tag, `File not found, but continuing: ${error.message}`);
+            } else {
+                throw error;
+            }
+        }
+
+        if (skill.includes('_untested')) {
+            let skillWorking = skill.replace('_untested', '');
+            log.info(tag,"skillWorking1: ",skillWorking);
+            skillWorking = skillWorking.replace(/_v\d+(?=.sh$)/, '');
+            log.info(tag,"skillWorking2: ",skillWorking);
+            const scriptPath = path.join(__dirname, '..', 'skills', `${skillWorking}`);
+            log.info(tag,"scriptPath: ",scriptPath);
+
+            try {
+                scriptWorking = fs.readFileSync(scriptPath, 'utf8');
+                context = {
+                    skill: skillWorking,
+                    working: true,
+                    script: scriptWorking
+                };
+            } catch (error: any) {
+                if (error.code === 'ENOENT') {
+                    log.warn(tag, `Error reading script, file not found but continuing: ${error.message}`);
+                    context = {
+                        skill: skillWorking,
+                        working: false,
+                        script: null
+                    };
+                } else {
+                    throw error;
+                }
+            }
+        }
+        log.info(tag,"context: ",context);
+        let result = await ai.fixScript(script, issue, context);
+        log.info(tag,"result: ",result);
+        log.info(tag,"result type: ",typeof(result));
+
+        if(!result.script) throw Error("Invalid result! Missing script");
+
+        skill = skill.replace(".sh","");
+
+        const versionMatch = skill.match(/_v(\d+)/);
+        let versionNumber = 1;
+        if (versionMatch) {
+            versionNumber = parseInt(versionMatch[1]) + 1;
+            skill = skill.replace(/_v\d+/, `_v${versionNumber}`);
+        } else {
+            skill += `_v${versionNumber}`;
+        }
+
+        skill = skill.replace(/_untested/, '');
+        skill += "_untested";
+
+        const newFilePath = path.join(__dirname,'..', 'skills', `${skill}.sh`);
+        fs.writeFileSync(newFilePath, result.script, 'utf8');
+        result.skillName = `${skill}.sh`;
+        return result;
+    }catch(e: any){
+        log.error(tag, 'Error in fix_skill: ', e.message);
+        throw e;
+    }
+}
+
+
+
 export async function perform_skill(skill: any, inputs: any) {
-    let tag = TAG + " | perform_skill | "
+    let tag = TAG + " | perform_skill | ";
     try {
-        //write script to file
-        let messages = []
-        let cmd = "sh "+skill;
-        log.info(tag, "cmd: ", cmd)
+        let messages = [];
+        let cmd = "bash "+skill;
+        log.info(tag, "cmd: ", cmd);
         try {
             const TIMEOUT_MS = 60000; // 60 seconds
 
@@ -180,60 +242,53 @@ export async function perform_skill(skill: any, inputs: any) {
             }
 
             let {stdout, stderr } = await util.promisify(exec)(cmd);
-            log.info(tag, "stdout: ", stdout)
-            log.info(tag, "stderr: ", stderr)
+            log.info(tag, "stdout: ", stdout);
+            log.info(tag, "stderr: ", stderr);
 
             if(stdout && stdout.length > 0 && stdout !== "null\\n"){
-                log.info(tag, "Valid Execution: ", stdout)
+                log.info(tag, "Valid Execution: ", stdout);
+
+                // Attempt to parse stdout as JSON
+                let stdoutData;
+                try {
+                    stdoutData = JSON.parse(stdout);
+                    stdout = JSON.stringify(stdoutData, null, 2); // Prettify JSON if possible
+                } catch (err) {
+                    // If stdout is not JSON, treat it as plain text
+                }
+
                 messages.push({
                     role: "assistant",
                     content: stdout
-                })
+                });
             } else if(stderr){
                 messages.push({
                     role: "user",
-                    content: "that errored: error: " + stderr
-                })
+                    content: "That errored: error: " + stderr
+                });
             } else if(stdout == "null\\n") {
                 messages.push({
                     role: "user",
-                    content: "that returned null, you should add error handling to the script"
-                })
+                    content: "That returned null, you should add error handling to the script"
+                });
             } else {
                 messages.push({
                     role: "user",
-                    content: "something is wrong, not getting any good output"
-                })
+                    content: "Something is wrong, not getting any good output"
+                });
             }
         } catch(e){
-            log.error(tag,"error: ",e)
+            log.error(tag,"error: ",e);
             messages.push({
                 role: "user",
-                content: "error: ",e
-            })
+                content: "Error: "+ e?.toString()
+            });
         }
 
-
-
-        return messages
+        return messages;
     } catch(e) {
         console.error(e);
         throw e;
-    }
-}
-
-export async function init(): Promise<void> {
-    const tag = TAG + " | handle_input | "
-    try{
-        //load the modal
-
-        //does data/db.txt exist?
-
-        //if not, create it
-
-
-    }catch(e){
-        console.error(e)
     }
 }
 
@@ -243,14 +298,20 @@ export async function handle_input(message: any): Promise<void> {
         log.info("message: ",message)
 
         // query
-        let res = await query(message)
-        log.info("res =: ",res)
+        // let res = await query(message)
+        // log.info("res =: ",res)
 
-        // const res1 = await chain.call({ input: message });
-        // log.info("res1: ",res1)
+        //
+        // const res = await chainCode.call({
+        //     input_documents: docs,
+        //     query: message,
+        // });
+
+        const res1 = await chainPrompt.call({ input: message });
+        log.info("res1: ",res1)
 
         //text
-        return res.text
+        return res1.text
     }catch(e){
         console.error(e)
     }
