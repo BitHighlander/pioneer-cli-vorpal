@@ -15,6 +15,7 @@
     "@keepkey/keepkey-sdk": "^0.2.49",
     "@pioneer-platform/langchain": "1.0.4",
     "@pioneer-platform/loggerdog": "^8.1.18",
+    "@pioneer-platform/pioneer-config": "^8.1.27",
     "@pioneer-platform/pioneer-intelligence": "^8.1.14",
     "@pioneer-sdk/sdk": "^1.1.123",
     "@shapeshiftoss/hdwallet-core": "^1.50.4",

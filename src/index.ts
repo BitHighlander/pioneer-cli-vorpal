@@ -6,6 +6,7 @@ dotenv.config({path:'../../.env'})
 import {fix_skill, handle_input, perform_skill, create_skill, autonomous, init} from "./engine";
 import {publish} from "./skills";
 import { onStartPioneer } from "./pioneer";
+let ai = require("./ai-controller")
 // import inquirer from 'inquirer';
 // const fsAutocomplete = require('vorpal-autocomplete-fs');
 
@@ -40,7 +41,6 @@ let onStart = async function(){
         await refreshSkills()
 
         //start wallet
-        onStartPioneer()
         //welcome
 
         //initial setup
@@ -352,6 +352,9 @@ let onStart = async function(){
 //test mode
 let onTest = async function(){
     try{
+        let pioneer = await onStartPioneer()
+        log.info("pioneer: ", pioneer)
+        await ai.init(pioneer)
 
         // let filename = 'get-open-issues_v2_untested.sh'
         // let issue = "the output does not contain the issue at all now"
@@ -367,12 +370,18 @@ let onTest = async function(){
         // let resultFix = await create_skill(skill,inputs,outputs, context)
         // console.log('resultFix: ', resultFix);
 
+        // let input = "what tools do you have"
+        // let output = await handle_input(input)
+        // console.log('output: ', output);
+        let output = await ai.query("whats my bitcoin address")
+        console.log('output: ', output);
         //autonomous
         // autonomous()
     }catch(e){
         console.error(e)
     }
 }
-// onTest()
-onStart()
-init()
+onTest()
+
+// onStart()
+// init()

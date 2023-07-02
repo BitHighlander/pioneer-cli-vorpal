@@ -23,6 +23,7 @@ if(!OPENAI_API_KEY) throw Error("OPENAI_API_KEY key required!")
 ai.init(OPENAI_API_KEY)
 let sleep = wait.sleep;
 
+let aiController = require("./ai-controller")
 
 import {
     StructuredOutputParser,
@@ -307,11 +308,15 @@ export async function handle_input(message: any): Promise<void> {
         //     query: message,
         // });
 
-        const res1 = await chainPrompt.call({ input: message });
-        log.info("res1: ",res1)
+        // const res1 = await chainPrompt.call({ input: message });
+        // log.info("res1: ",res1)
+        //
+        // //text
+        // return res1.text
 
-        //text
-        return res1.text
+        let result = await aiController.query({ input: message })
+        log.info("result: ",result)
+        return result
     }catch(e){
         console.error(e)
     }

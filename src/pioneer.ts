@@ -2,11 +2,14 @@ import { KkRestAdapter } from "@keepkey/hdwallet-keepkey-rest";
 import { KeepKeySdk } from "@keepkey/keepkey-sdk";
 import { SDK } from "@pioneer-sdk/sdk";
 import * as core from "@shapeshiftoss/hdwallet-core";
+const log = require('@pioneer-platform/loggerdog')()
 import type { NativeHDWallet } from "@shapeshiftoss/hdwallet-native";
 import { NativeAdapter } from "@shapeshiftoss/hdwallet-native";
 import { entropyToMnemonic } from "bip39";
 //@ts-ignore
 import { v4 as uuidv4 } from "uuid";
+import ai = require("./ai-controller");
+import * as config from "@pioneer-platform/pioneer-config"
 
 export enum WalletActions {
     SET_STATUS = "SET_STATUS",
@@ -124,16 +127,20 @@ async function checkKeepkeyAvailability() {
 
 export const onStartPioneer = async function () {
     try {
-        const serviceKey = process.env["QUERY_KEY"];
-        let queryKey = serviceKey
-        let username = process.env['USERNAME']
+        log.info("config: ", config)
+        let configFile = config.getConfig()
+        if(!configFile) await config.innitConfig("english")
+        configFile = config.getConfig()
+        let { serviceKey, queryKey, username } = configFile
 
         if (!queryKey) {
             queryKey = `key:${uuidv4()}`;
+            config.updateConfig({queryKey})
         }
         if (!username) {
             username = `user:${uuidv4()}`;
             username = username.substring(0, 13);
+            config.updateConfig({username})
         }
 
         const keyring = new core.Keyring();
@@ -152,7 +159,7 @@ export const onStartPioneer = async function () {
         const spec =
             process.env["PIONEER_URL_SPEC"] || "https://pioneers.dev/spec/swagger.json";
         const wss = process.env["PIONEER_URL_WS"] || "wss://pioneers.dev";
-        const config: any = {
+        const configPioneer: any = {
             blockchains,
             username,
             queryKey,
@@ -161,13 +168,13 @@ export const onStartPioneer = async function () {
             paths,
         };
 
-        let app = new SDK(spec, config);
+        let app = new SDK(spec, configPioneer);
 
         let walletKeepKey: core.HDWallet | null = null;
         const isKeepkeyAvailable = await checkKeepkeyAvailability();
 
         if (isKeepkeyAvailable) {
-            const config: any = {
+            const configKeepKey: any = {
                 apiKey: serviceKey || "notSet",
                 pairingInfo: {
                     name: "Pioneer",
@@ -176,7 +183,8 @@ export const onStartPioneer = async function () {
                     url: "https://pioneer-template.vercel.com",
                 },
             };
-            const sdkKeepKey = await KeepKeySdk.create(config);
+            const sdkKeepKey = await KeepKeySdk.create(configKeepKey);
+            config.updateConfig({serviceKey: configKeepKey.apiKey})
             //@ts-ignore
             walletKeepKey = await KkRestAdapter.useKeyring(keyring).pairDevice(sdkKeepKey);
 
@@ -197,23 +205,29 @@ export const onStartPioneer = async function () {
             state.wallet = walletPreferred;
 
             const api = await app.init(walletPreferred);
-
+            // log.info("api: ",api)
+            log.info("app: ",app)
+            log.info("ai: ",ai)
             //@ts-ignore
-            if (api) {
-                state.app = app;
-                state.api = api;
 
-                //@ts-ignore
-                const user = await api.User();
-                console.log("user: ", user.data);
-
-                setBlockchainContext(user.data.blockchainContext);
-                setAssetContext(user.data.assetContext);
-            }
+            // const user = await api.User();
+            // console.log("user: ", user.data);
+            // //@ts-ignore
+            // if (api) {
+            //     state.app = app;
+            //     state.api = api;
+            //
+            //     //@ts-ignore
+            //     const user = await api.User();
+            //     console.log("user: ", user.data);
+            //
+            //     setBlockchainContext(user.data.blockchainContext);
+            //     setAssetContext(user.data.assetContext);
+            // }
         }
 
         //
-
+        return app
     } catch (e) {
         console.error(e);
     }
